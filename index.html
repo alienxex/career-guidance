@@ -4,105 +4,151 @@
   <meta charset="UTF-8" />
   <title>AI Career Guidance System</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <style>
     body {
       font-family: Arial, sans-serif;
       background: #f4f6f8;
+      margin: 0;
       padding: 20px;
     }
+
     .container {
-      max-width: 800px;
-      background: white;
+      max-width: 900px;
+      background: #ffffff;
       padding: 20px;
-      border-radius: 8px;
       margin: auto;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
+
     h1 {
       text-align: center;
+      margin-bottom: 20px;
     }
+
     label {
+      display: block;
+      margin-top: 15px;
       font-weight: bold;
     }
+
     input, select {
       width: 100%;
       padding: 8px;
-      margin: 6px 0 12px;
+      margin-top: 5px;
     }
+
+    .quiz-section {
+      margin-top: 25px;
+    }
+
+    .quiz-question {
+      margin-top: 15px;
+    }
+
     button {
+      margin-top: 30px;
       width: 100%;
       padding: 12px;
       background: #007bff;
-      color: white;
+      color: #fff;
+      font-size: 16px;
       border: none;
       border-radius: 4px;
-      font-size: 16px;
       cursor: pointer;
     }
+
     button:hover {
       background: #0056b3;
     }
+
     #result {
-      margin-top: 20px;
+      margin-top: 30px;
       padding: 15px;
+      background: #eef3ff;
       border-radius: 5px;
-      background: #eef2ff;
       white-space: pre-wrap;
     }
   </style>
 </head>
+
 <body>
+  <div class="container">
+    <h1>AI Career Guidance System</h1>
 
-<div class="container">
-  <h1>AI Career Guidance System</h1>
+    <!-- BASIC DETAILS -->
+    <label for="name">Your Name</label>
+    <input type="text" id="name" placeholder="Enter your name" />
 
-  <label>Your Name</label>
-  <input id="name" placeholder="Enter your name" />
+    <label for="stream">Stream</label>
+    <select id="stream">
+      <option value="">Select stream</option>
+      <option value="Science">Science</option>
+      <option value="Commerce">Commerce</option>
+      <option value="Arts">Arts</option>
+    </select>
 
-  <label>Stream</label>
-  <select id="stream">
-    <option>Science</option>
-    <option>Commerce</option>
-    <option>Arts</option>
-  </select>
+    <label for="marks">12th Marks (%)</label>
+    <input type="number" id="marks" placeholder="Enter percentage" />
 
-  <label>12th Marks (%)</label>
-  <input id="marks" type="number" />
+    <!-- QUIZ -->
+    <div class="quiz-section">
+      <h2>Career Aptitude Quiz</h2>
 
-  <h3>Career Aptitude Quiz</h3>
+      <div class="quiz-question">
+        <label>1. I enjoy solving logical and analytical problems.</label>
+        <select class="quiz">
+          <option value="Strongly Agree">Strongly Agree</option>
+          <option value="Agree">Agree</option>
+          <option value="Neutral">Neutral</option>
+          <option value="Disagree">Disagree</option>
+          <option value="Strongly Disagree">Strongly Disagree</option>
+        </select>
+      </div>
 
-  <label>1. I enjoy solving logical and analytical problems</label>
-  <select class="quiz">
-    <option value="5">Strongly Agree</option>
-    <option value="3">Neutral</option>
-    <option value="1">Disagree</option>
-  </select>
+      <div class="quiz-question">
+        <label>2. I like creating designs, writing, or innovative ideas.</label>
+        <select class="quiz">
+          <option value="Strongly Agree">Strongly Agree</option>
+          <option value="Agree">Agree</option>
+          <option value="Neutral">Neutral</option>
+          <option value="Disagree">Disagree</option>
+          <option value="Strongly Disagree">Strongly Disagree</option>
+        </select>
+      </div>
 
-  <label>2. I like creating designs, writing, or innovative ideas</label>
-  <select class="quiz">
-    <option value="5">Strongly Agree</option>
-    <option value="3">Neutral</option>
-    <option value="1">Disagree</option>
-  </select>
+      <div class="quiz-question">
+        <label>3. I enjoy helping, teaching, or guiding people.</label>
+        <select class="quiz">
+          <option value="Strongly Agree">Strongly Agree</option>
+          <option value="Agree">Agree</option>
+          <option value="Neutral">Neutral</option>
+          <option value="Disagree">Disagree</option>
+          <option value="Strongly Disagree">Strongly Disagree</option>
+        </select>
+      </div>
 
-  <label>3. I enjoy helping, teaching, or guiding people</label>
-  <select class="quiz">
-    <option value="5">Strongly Agree</option>
-    <option value="3">Neutral</option>
-    <option value="1">Disagree</option>
-  </select>
+      <div class="quiz-question">
+        <label>4. I prefer practical or hands-on work.</label>
+        <select class="quiz">
+          <option value="Strongly Agree">Strongly Agree</option>
+          <option value="Agree">Agree</option>
+          <option value="Neutral">Neutral</option>
+          <option value="Disagree">Disagree</option>
+          <option value="Strongly Disagree">Strongly Disagree</option>
+        </select>
+      </div>
+    </div>
 
-  <label>4. I prefer practical or hands-on work</label>
-  <select class="quiz">
-    <option value="5">Strongly Agree</option>
-    <option value="3">Neutral</option>
-    <option value="1">Disagree</option>
-  </select>
+    <!-- BUTTON -->
+    <button id="submitBtn">Get Career Guidance</button>
 
-  <button id="submitBtn">Get Career Guidance</button>
+    <!-- RESULT -->
+    <div id="result"></div>
+  </div>
 
-  <div id="result"></div>
-</div>
-
-<script src="script.js"></script>
+  <!-- SCRIPT -->
+  <script src="script.js"></script>
 </body>
 </html>
