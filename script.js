@@ -15,11 +15,9 @@ const AI = {
             // Handle Errors sent from Worker
             if (data.error) {
                 console.error("AI Error:", data);
-                // Return the specific error details so the user sees it
                 return { success: false, error: `${data.error}: ${data.details || ''}` };
             }
             
-            // Success Path
             let text = null;
             if (data.choices && data.choices[0]) {
                 text = data.choices[0].message.content;
@@ -35,13 +33,13 @@ const AI = {
     },
 
     async getQuizQuestions(interests) {
-        // Fallback data in case AI fails immediately
-        const fallback = [
-            { id: "fb1", text: "I prefer working in a team.", weights: { Leadership: 5, Communication: 5 } },
-            { id: "fb2", text: "I enjoy solving logical problems.", weights: { Logic: 5 } },
-            { id: "fb3", text: "I am interested in creative arts.", weights: { Creativity: 5 } },
-            { id: "fb4", text: "I like helping others.", weights: { Empathy: 5 } },
-            { id: "fb5", text: "I enjoy physical activities.", weights: { Physical: 5 } }
+        // Fallback questions if AI fails
+        const staticQs = [
+            { id: 'fb1', text: "I enjoy solving logical problems.", weights: { Logic: 5 } },
+            { id: 'fb2', text: "I prefer leading teams.", weights: { Leadership: 5 } },
+            { id: 'fb3', text: "I like helping others.", weights: { Empathy: 5 } },
+            { id: 'fb4', text: "I am creative.", weights: { Creativity: 5 } },
+            { id: 'fb5', text: "I like working outdoors.", weights: { Physical: 5 } }
         ];
 
         const prompt = `Generate 5 simple "I..." statements for a career aptitude test based on: ${interests.join(', ')}. 
@@ -58,7 +56,6 @@ const AI = {
                 console.error("JSON Parse failed", e); 
             }
         }
-        // If AI fails, return null to trigger static question usage
         return null;
     },
 
@@ -68,7 +65,6 @@ const AI = {
         
         const res = await this.generate(prompt, false);
         
-        // Pass the actual error message if it failed
         if (!res.success) return `AI Error: ${res.error}`;
         return res.text;
     }
@@ -173,15 +169,13 @@ const App = {
 
 const UI = {
     init() {
+        // --- THE NUCLEAR FIX ---
+        // This instantly DESTROYS the welcome screen on click
         const startBtn = document.getElementById('start-btn');
         if(startBtn) {
             startBtn.onclick = () => {
-                // FIXED: Instant removal of Welcome Screen to prevent overlap
                 const welcome = document.getElementById('welcome-screen');
-                if(welcome) {
-                    welcome.style.display = 'none'; // Force hide
-                    welcome.parentNode.removeChild(welcome); // Remove from DOM completely
-                }
+                if(welcome) welcome.remove(); // Delete it. Gone. Forever.
                 
                 document.getElementById('app').classList.remove('opacity-0');
                 this.goto(0);
@@ -335,11 +329,7 @@ const UI = {
     setAns(id, val) { App.state.answers[id] = val; this.renderQuiz(); },
 
     async renderResult() {
-        // Double check cleanup
         this.safeClassAdd('nav-footer', 'hidden');
-        const welcome = document.getElementById('welcome-screen');
-        if(welcome) welcome.style.display = 'none';
-
         this.safeClassRemove('loading-overlay', 'hidden');
         const loadingText = document.getElementById('loading-text');
         if(loadingText) loadingText.innerText = "FINALIZING...";
@@ -384,7 +374,6 @@ const UI = {
         
         const aiContainer = document.getElementById('ai-result-content');
         if(aiContainer) {
-            // Render the AI text (or the error message if something failed)
             aiContainer.innerHTML = `<div class="ai-response text-xs text-zinc-300 leading-relaxed font-light">${aiResultData.replace(/\n/g, '<br>')}</div>`;
         }
     }
