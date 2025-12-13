@@ -1,81 +1,79 @@
-// Get form elements
-const nameInput = document.getElementById("name");
-const streamInput = document.getElementById("stream");
-const marksInput = document.getElementById("marks");
-const resultBox = document.getElementById("result");
-const submitBtn = document.getElementById("submitBtn");
+const WORKER_URL = "https://career-ai-proxy.robust9223.workers.dev";
 
-submitBtn.addEventListener("click", async () => {
-  resultBox.innerText = "Analyzing your profile...";
+document.getElementById("submitBtn").addEventListener("click", async () => {
+  const name = document.getElementById("name").value;
+  const stream = document.getElementById("stream").value;
+  const marks = document.getElementById("marks").value;
+  const quiz = document.querySelectorAll(".quiz");
+  const resultBox = document.getElementById("result");
 
-  // 1️⃣ Initialize aptitude scores
-  const scores = {
-    logical: 0,
-    creative: 0,
-    social: 0,
-    practical: 0
-  };
+  if (!name || !marks) {
+    resultBox.innerText = "Please fill all details.";
+    return;
+  }
 
-  // 2️⃣ Read quiz answers
-  document.querySelectorAll(".quiz").forEach(q => {
-    const type = q.dataset.type;   // logical / creative / social / practical
-    const value = Number(q.value);
-    scores[type] += value;
-  });
+  let scores = [];
+  quiz.forEach(q => scores.push(Number(q.value)));
 
-  // 3️⃣ Build AI prompt
   const prompt = `
 Act as an expert career counselor for Indian students.
 
 Student Profile:
-Name: ${nameInput.value}
-Stream: ${streamInput.value}
-12th Marks: ${marksInput.value}
+Name: ${name}
+Stream: ${stream}
+12th Marks: ${marks}%
 
 Aptitude Scores:
-Logical: ${scores.logical}
-Creative: ${scores.creative}
-Social: ${scores.social}
-Practical: ${scores.practical}
+Logical: ${scores[0]}
+Creative: ${scores[1]}
+Social: ${scores[2]}
+Practical: ${scores[3]}
 
-Task:
-Suggest the TOP 3 suitable career paths.
-Explain why each career matches the student.
-Give clear next steps after 12th (courses, exams, skills).
-Use simple language.
+Tasks:
+1. Suggest top 3 suitable career paths.
+2. Explain why each is suitable.
+3. Give next steps after 12th.
+
+Respond clearly in bullet points.
 `;
 
+  resultBox.innerText = "Analyzing your profile...";
+
   try {
-    // 4️⃣ Call Cloudflare Worker (Gemini proxy)
-    const response = await fetch(
-      "https://career-ai-proxy.robust9223.workers.dev",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }]
-            }
-          ]
-        })
+    const response = await fetch(WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: prompt }]
+          }
+        ]
+      })
+    });
+
+    const data = await response.json();
+
+    let aiText = "";
+
+    if (data.candidates && data.candidates.length > 0) {
+      const candidate = data.candidates[0];
+
+      if (candidate.content && candidate.content.parts) {
+        aiText = candidate.content.parts.map(p => p.text).join("\n");
+      } else if (candidate.output_text) {
+        aiText = candidate.output_text;
       }
-    );
+    }
 
-   const data = await response.json();
+    if (!aiText) {
+      throw new Error("Empty AI response");
+    }
 
-// Correct handling of Worker response
-if (!data.text) {
-  resultBox.innerText = "AI could not generate a response. Please try again.";
-  return;
-}
-
-resultBox.innerText = data.text;
+    resultBox.innerText = aiText;
 
   } catch (error) {
-    console.error("Fetch error:", error);
-    resultBox.innerText = "Error connecting to AI service.";
+    console.error(error);
+    resultBox.innerText = "AI could not generate a response. Please try again.";
   }
 });
