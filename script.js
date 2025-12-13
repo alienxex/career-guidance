@@ -1,12 +1,10 @@
 // --- CONFIGURATION ---
-// PASTE YOUR CLOUDFLARE LINK HERE
+// Ensure this matches your Cloudflare URL exactly
 const WORKER_URL = "https://career-ai-proxy.robust9223.workers.dev/"; 
 
-// --- AI ENGINE (Secure Proxy) ---
 const AI = {
     async generate(prompt, isJson = false) {
         try {
-            console.log("Contacting Worker...");
             const response = await fetch(WORKER_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -15,71 +13,53 @@ const AI = {
 
             const data = await response.json();
 
-            // Check if Cloudflare sent an error back
             if (data.error) {
-                console.error("Worker Error:", data);
-                return { success: false, error: data.error };
+                console.error("Worker returned error:", data);
+                return { success: false, error: data.details || data.error };
             }
             
-            // Parse OpenRouter Response
-            // OpenRouter Standard: choices[0].message.content
+            // Handle different API structures
             let text = null;
             if (data.choices && data.choices[0] && data.choices[0].message) {
                 text = data.choices[0].message.content;
             } 
             
-            if (text) {
-                return { success: true, text: text };
-            } else {
-                console.warn("Unexpected AI response structure:", data);
-                return { success: false, error: "AI returned no text." };
-            }
+            if (text) return { success: true, text: text };
+            return { success: false, error: "No text in response" };
+
         } catch (e) {
-            console.error("Connection Failed:", e);
-            return { success: false, error: "Connection Failed. Check Console." };
+            console.error("Connection failed:", e);
+            return { success: false, error: "Connection Error" };
         }
     },
 
     async getQuizQuestions(interests) {
-        // Free models sometimes chat too much, so we force them to be strict
-        const prompt = `You are a strictly JSON generating API. 
-        Task: Generate 5 simple "I..." statements for a career aptitude test based on these interests: ${interests.join(', ')}. 
-        Output: A raw JSON Array only. No markdown, no "Here is your JSON", no code blocks.
-        Format: [{"text": "I like math.", "weights": {"Logic": 5}}]
-        Traits for weights: Logic, Creativity, Leadership, Empathy, Physical, Resilience, Detail Orientation.`;
+        const prompt = `Generate 5 simple "I..." statements for a career aptitude test based on: ${interests.join(', ')}. 
+        Return ONLY valid JSON Array. Example: [{"text": "I like math.", "weights": {"Logic": 5}}]
+        Traits: Logic, Creativity, Leadership, Empathy, Physical, Resilience, Detail Orientation.`;
         
         const res = await this.generate(prompt, true);
         
         if (res.success && res.text) {
             try { 
-                // Aggressive cleaning to fix Free Model "chatty" responses
-                let cleanText = res.text.trim();
-                // Remove ```json and ``` wrapping
-                cleanText = cleanText.replace(/^```json/i, '').replace(/^```/i, '').replace(/```$/i, '');
+                // Remove Markdown formatting if AI adds it
+                let cleanText = res.text.replace(/```json/g,'').replace(/```/g,'').trim();
                 return JSON.parse(cleanText); 
             } catch(e) {
-                console.error("JSON Parse Error:", e);
-                console.log("Bad Text:", res.text);
+                console.error("JSON Parse failed", e);
             }
         }
-        return null; // Will trigger fallback to static questions
+        return null;
     },
 
     async getInsight(profile, careers) {
         const prompt = `Role: Career Counselor. Profile: ${JSON.stringify(profile)}. Available Careers: ${careers.join(', ')}. 
-        Task: Pick top 3 best fits. 
-        Output Format strictly markdown: 
-        1. **[Role]**: [Reason]
-        2. **[Role]**: [Reason]
-        3. **[Role]**: [Reason]
-        Keep it brief.`;
-        
+        Select top 3 fits. Format strictly as Markdown list. Keep it brief.`;
         const res = await this.generate(prompt, false);
-        return res.success ? res.text : "AI Service busy (Free Tier Limit). Please rely on the list above.";
+        return res.success ? res.text : `AI Service is busy. Recommended careers are: ${careers.slice(0,3).join(", ")}.`;
     }
 };
 
-// --- DATA STORE ---
 const App = {
     state: {
         step: 0,
@@ -177,12 +157,15 @@ const App = {
     }
 };
 
-// --- UI LOGIC ---
 const UI = {
     init() {
-        const startBtn = document.getElementById('start-btn');
-        if(startBtn) startBtn.onclick = () => {
-            document.getElementById('welcome-screen').classList.add('hidden');
+        // FORCE HIDE Welcome Screen on Init to prevent overlaps
+        document.getElementById('start-btn').onclick = () => {
+            const welcome = document.getElementById('welcome-screen');
+            welcome.style.opacity = '0';
+            welcome.style.pointerEvents = 'none';
+            setTimeout(() => welcome.classList.add('hidden'), 500);
+
             document.getElementById('app').classList.remove('opacity-0');
             this.goto(0);
         };
@@ -231,8 +214,8 @@ const UI = {
         const s = App.state.step;
         
         if(s===0 && App.state.user.name.length < 2) return alert("Please enter your name.");
-        if(s===1 && !App.state.user.marks) return alert("Please enter your marks/percentage.");
-        if(s===2 && App.state.user.interests.length === 0) return alert("Please select at least one interest.");
+        if(s===1 && !App.state.user.marks) return alert("Please enter your marks.");
+        if(s===2 && App.state.user.interests.length === 0) return alert("Select at least one interest.");
         
         if(s===2) {
             this.safeClassRemove('loading-overlay', 'hidden');
@@ -242,16 +225,17 @@ const UI = {
             let aiQs = await AI.getQuizQuestions(App.state.user.interests);
             const staticQs = App.coreQuestions.map((q,i)=>({...q, id:`s_${i}`}));
             
+            // Check if AI gave valid questions, otherwise use static
             if(aiQs && Array.isArray(aiQs) && aiQs.length > 0) {
                 const mappedAi = aiQs.map((q,i)=>({...q, id:`ai_${i}`}));
                 App.state.activeQuestions = [...staticQs, ...mappedAi];
             } else {
-                // Fallback to static questions
                 App.state.activeQuestions = [...staticQs];
                 App.state.user.interests.forEach(intId => {
                    const qs = App.interestQuestions[intId];
-                   if(qs && Array.isArray(qs)) App.state.activeQuestions.push(qs[0]); 
+                   if(qs) App.state.activeQuestions.push(qs[0]); 
                 });
+                // Deduplicate
                 App.state.activeQuestions = App.state.activeQuestions.filter((v,i,a)=>a.findIndex(t=>(t.id===v.id))===i).slice(0,10);
             }
             
@@ -269,52 +253,45 @@ const UI = {
     back() { if(App.state.step>0) this.goto(App.state.step-1); },
 
     renderIdentity() {
-        const el = document.getElementById('content-area');
-        if(el) {
-            el.innerHTML = `
-                <h2 class="text-2xl font-bold text-white mb-4">IDENTITY</h2>
-                <div class="space-y-4">
-                    <input id="in-name" class="w-full p-4 input-mono text-sm" placeholder="Full Name" value="${App.state.user.name}">
-                    <div class="flex gap-4">
-                        <input id="in-age" type="number" class="w-1/2 p-4 input-mono text-sm" placeholder="Age" value="${App.state.user.age}">
-                        <select id="in-gender" class="w-1/2 p-4 input-mono text-sm">
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                        </select>
-                    </div>
-                </div>`;
-            document.getElementById('in-name').oninput = e => App.state.user.name = e.target.value;
-            document.getElementById('in-age').oninput = e => App.state.user.age = e.target.value;
-            document.getElementById('in-gender').onchange = e => App.state.user.gender = e.target.value;
-        }
+        document.getElementById('content-area').innerHTML = `
+            <h2 class="text-2xl font-bold text-white mb-4">IDENTITY</h2>
+            <div class="space-y-4">
+                <input id="in-name" class="w-full p-4 input-mono text-sm" placeholder="Full Name" value="${App.state.user.name}">
+                <div class="flex gap-4">
+                    <input id="in-age" type="number" class="w-1/2 p-4 input-mono text-sm" placeholder="Age" value="${App.state.user.age}">
+                    <select id="in-gender" class="w-1/2 p-4 input-mono text-sm">
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                    </select>
+                </div>
+            </div>`;
+        document.getElementById('in-name').oninput = e => App.state.user.name = e.target.value;
+        document.getElementById('in-age').oninput = e => App.state.user.age = e.target.value;
+        document.getElementById('in-gender').onchange = e => App.state.user.gender = e.target.value;
     },
 
     renderBackground() {
-        const el = document.getElementById('content-area');
-        if(el) {
-            el.innerHTML = `
-                <h2 class="text-2xl font-bold text-white mb-4">ACADEMIC</h2>
-                <div class="space-y-4">
-                    <label class="text-xs text-zinc-400">Current Pursuing Education</label>
-                    <select id="in-edu" class="w-full p-4 input-mono text-sm">
-                        <option value="High School">High School (10th-12th)</option>
-                        <option value="Undergraduate">Undergraduate</option>
-                        <option value="Postgraduate">Postgraduate</option>
-                    </select>
-                    <label class="text-xs text-zinc-400">Performance (%)</label>
-                    <input id="in-marks" type="number" class="w-full p-4 input-mono text-sm" placeholder="0-100" value="${App.state.user.marks}">
-                </div>`;
-            document.getElementById('in-edu').onchange = e => App.state.user.education = e.target.value;
-            document.getElementById('in-marks').oninput = e => App.state.user.marks = e.target.value;
-        }
+        document.getElementById('content-area').innerHTML = `
+            <h2 class="text-2xl font-bold text-white mb-4">ACADEMIC</h2>
+            <div class="space-y-4">
+                <label class="text-xs text-zinc-400">Current Pursuing Education</label>
+                <select id="in-edu" class="w-full p-4 input-mono text-sm">
+                    <option value="High School">High School (10th-12th)</option>
+                    <option value="Undergraduate">Undergraduate</option>
+                    <option value="Postgraduate">Postgraduate</option>
+                </select>
+                <label class="text-xs text-zinc-400">Performance (%)</label>
+                <input id="in-marks" type="number" class="w-full p-4 input-mono text-sm" placeholder="0-100" value="${App.state.user.marks}">
+            </div>`;
+        document.getElementById('in-edu').onchange = e => App.state.user.education = e.target.value;
+        document.getElementById('in-marks').oninput = e => App.state.user.marks = e.target.value;
     },
 
     renderInterests() {
         const html = App.interestsList.map(i => 
             `<button class="p-4 selection-card text-left text-xs font-bold uppercase tracking-wider ${App.state.user.interests.includes(i.id)?'active':''}" onclick="UI.toggleInt('${i.id}')">${i.label}</button>`
         ).join('');
-        const el = document.getElementById('content-area');
-        if(el) el.innerHTML = `
+        document.getElementById('content-area').innerHTML = `
             <h2 class="text-2xl font-bold text-white mb-4">INTERESTS</h2>
             <div class="grid grid-cols-2 gap-3 overflow-y-auto max-h-[400px] pr-2">${html}</div>`;
     },
@@ -335,15 +312,18 @@ const UI = {
                 </div>
             </div>
         `).join('');
-        const el = document.getElementById('content-area');
-        if(el) el.innerHTML = `
+        document.getElementById('content-area').innerHTML = `
             <h2 class="text-2xl font-bold text-white mb-4">ASSESSMENT</h2>
             <div class="overflow-y-auto max-h-[420px] pr-2">${html}</div>`;
     },
     setAns(id, val) { App.state.answers[id] = val; this.renderQuiz(); },
 
     async renderResult() {
+        // FORCE HIDE navigation and welcome screen
         this.safeClassAdd('nav-footer', 'hidden');
+        const welcome = document.getElementById('welcome-screen');
+        if(welcome) welcome.classList.add('hidden');
+        
         this.safeClassRemove('loading-overlay', 'hidden');
         const loadingText = document.getElementById('loading-text');
         if(loadingText) loadingText.innerText = "FINALIZING...";
@@ -360,8 +340,7 @@ const UI = {
              </div>`
         ).join('');
 
-        const el = document.getElementById('content-area');
-        el.innerHTML = `
+        document.getElementById('content-area').innerHTML = `
             <div class="text-center mb-6">
                 <h2 class="text-2xl font-bold text-white">CAREER BLUEPRINT</h2>
                 <p class="text-[10px] font-mono text-zinc-500 uppercase">Optimized for ${App.state.user.name}</p>
@@ -383,7 +362,7 @@ const UI = {
         
         this.safeClassAdd('loading-overlay', 'hidden');
 
-        // Fetch AI Insight
+        // Fetch AI
         const careerNames = App.careers.map(c => c.name);
         const aiResultData = await AI.getInsight({ user: App.state.user, scores: App.state.scores }, careerNames);
         
@@ -398,7 +377,6 @@ const UI = {
     }
 };
 
-// --- 3D BACKGROUND ---
 const ThreeBG = {
     init() {
         try {
