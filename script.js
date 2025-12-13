@@ -1,5 +1,4 @@
 // --- CONFIGURATION ---
-// Ensure this matches your Cloudflare URL exactly
 const WORKER_URL = "https://career-ai-proxy.robust9223.workers.dev/"; 
 
 const AI = {
@@ -14,18 +13,17 @@ const AI = {
             const data = await response.json();
 
             if (data.error) {
-                console.error("Worker returned error:", data);
-                return { success: false, error: data.details || data.error };
+                console.error("Worker Error:", data);
+                return { success: false, error: "AI Error" };
             }
             
-            // Handle different API structures
             let text = null;
-            if (data.choices && data.choices[0] && data.choices[0].message) {
+            if (data.choices && data.choices[0]) {
                 text = data.choices[0].message.content;
             } 
             
             if (text) return { success: true, text: text };
-            return { success: false, error: "No text in response" };
+            return { success: false, error: "No response text" };
 
         } catch (e) {
             console.error("Connection failed:", e);
@@ -42,12 +40,9 @@ const AI = {
         
         if (res.success && res.text) {
             try { 
-                // Remove Markdown formatting if AI adds it
                 let cleanText = res.text.replace(/```json/g,'').replace(/```/g,'').trim();
                 return JSON.parse(cleanText); 
-            } catch(e) {
-                console.error("JSON Parse failed", e);
-            }
+            } catch(e) { console.error("JSON Parse failed", e); }
         }
         return null;
     },
@@ -159,12 +154,13 @@ const App = {
 
 const UI = {
     init() {
-        // FORCE HIDE Welcome Screen on Init to prevent overlaps
+        // UI FIX: Aggressively hide welcome screen to prevent overlapping
         document.getElementById('start-btn').onclick = () => {
             const welcome = document.getElementById('welcome-screen');
-            welcome.style.opacity = '0';
+            welcome.style.opacity = '0'; 
             welcome.style.pointerEvents = 'none';
-            setTimeout(() => welcome.classList.add('hidden'), 500);
+            // Wait 500ms for fade out, then remove completely
+            setTimeout(() => { welcome.style.display = 'none'; }, 500); 
 
             document.getElementById('app').classList.remove('opacity-0');
             this.goto(0);
@@ -225,7 +221,6 @@ const UI = {
             let aiQs = await AI.getQuizQuestions(App.state.user.interests);
             const staticQs = App.coreQuestions.map((q,i)=>({...q, id:`s_${i}`}));
             
-            // Check if AI gave valid questions, otherwise use static
             if(aiQs && Array.isArray(aiQs) && aiQs.length > 0) {
                 const mappedAi = aiQs.map((q,i)=>({...q, id:`ai_${i}`}));
                 App.state.activeQuestions = [...staticQs, ...mappedAi];
@@ -235,7 +230,6 @@ const UI = {
                    const qs = App.interestQuestions[intId];
                    if(qs) App.state.activeQuestions.push(qs[0]); 
                 });
-                // Deduplicate
                 App.state.activeQuestions = App.state.activeQuestions.filter((v,i,a)=>a.findIndex(t=>(t.id===v.id))===i).slice(0,10);
             }
             
@@ -319,10 +313,11 @@ const UI = {
     setAns(id, val) { App.state.answers[id] = val; this.renderQuiz(); },
 
     async renderResult() {
-        // FORCE HIDE navigation and welcome screen
+        // UI FIX: Ensure all overlapping elements are hidden
         this.safeClassAdd('nav-footer', 'hidden');
+        
         const welcome = document.getElementById('welcome-screen');
-        if(welcome) welcome.classList.add('hidden');
+        if(welcome) welcome.style.display = 'none'; // Hard hide to prevent overlap
         
         this.safeClassRemove('loading-overlay', 'hidden');
         const loadingText = document.getElementById('loading-text');
