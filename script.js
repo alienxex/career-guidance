@@ -12,26 +12,38 @@ const AI = {
 
             const data = await response.json();
 
+            // Handle Errors sent from Worker
             if (data.error) {
-                console.error("Worker Error:", data);
-                return { success: false, error: "AI Error" };
+                console.error("AI Error:", data);
+                // Return the specific error details so the user sees it
+                return { success: false, error: `${data.error}: ${data.details || ''}` };
             }
             
+            // Success Path
             let text = null;
             if (data.choices && data.choices[0]) {
                 text = data.choices[0].message.content;
             } 
             
             if (text) return { success: true, text: text };
-            return { success: false, error: "No response text" };
+            return { success: false, error: "AI returned empty response." };
 
         } catch (e) {
-            console.error("Connection failed:", e);
-            return { success: false, error: "Connection Error" };
+            console.error("Network Error:", e);
+            return { success: false, error: "Could not connect to Cloudflare Worker." };
         }
     },
 
     async getQuizQuestions(interests) {
+        // Fallback data in case AI fails immediately
+        const fallback = [
+            { id: "fb1", text: "I prefer working in a team.", weights: { Leadership: 5, Communication: 5 } },
+            { id: "fb2", text: "I enjoy solving logical problems.", weights: { Logic: 5 } },
+            { id: "fb3", text: "I am interested in creative arts.", weights: { Creativity: 5 } },
+            { id: "fb4", text: "I like helping others.", weights: { Empathy: 5 } },
+            { id: "fb5", text: "I enjoy physical activities.", weights: { Physical: 5 } }
+        ];
+
         const prompt = `Generate 5 simple "I..." statements for a career aptitude test based on: ${interests.join(', ')}. 
         Return ONLY valid JSON Array. Example: [{"text": "I like math.", "weights": {"Logic": 5}}]
         Traits: Logic, Creativity, Leadership, Empathy, Physical, Resilience, Detail Orientation.`;
@@ -42,16 +54,23 @@ const AI = {
             try { 
                 let cleanText = res.text.replace(/```json/g,'').replace(/```/g,'').trim();
                 return JSON.parse(cleanText); 
-            } catch(e) { console.error("JSON Parse failed", e); }
+            } catch(e) { 
+                console.error("JSON Parse failed", e); 
+            }
         }
+        // If AI fails, return null to trigger static question usage
         return null;
     },
 
     async getInsight(profile, careers) {
         const prompt = `Role: Career Counselor. Profile: ${JSON.stringify(profile)}. Available Careers: ${careers.join(', ')}. 
         Select top 3 fits. Format strictly as Markdown list. Keep it brief.`;
+        
         const res = await this.generate(prompt, false);
-        return res.success ? res.text : `AI Service is busy. Recommended careers are: ${careers.slice(0,3).join(", ")}.`;
+        
+        // Pass the actual error message if it failed
+        if (!res.success) return `AI Error: ${res.error}`;
+        return res.text;
     }
 };
 
@@ -154,17 +173,20 @@ const App = {
 
 const UI = {
     init() {
-        // UI FIX: Aggressively hide welcome screen to prevent overlapping
-        document.getElementById('start-btn').onclick = () => {
-            const welcome = document.getElementById('welcome-screen');
-            welcome.style.opacity = '0'; 
-            welcome.style.pointerEvents = 'none';
-            // Wait 500ms for fade out, then remove completely
-            setTimeout(() => { welcome.style.display = 'none'; }, 500); 
-
-            document.getElementById('app').classList.remove('opacity-0');
-            this.goto(0);
-        };
+        const startBtn = document.getElementById('start-btn');
+        if(startBtn) {
+            startBtn.onclick = () => {
+                // FIXED: Instant removal of Welcome Screen to prevent overlap
+                const welcome = document.getElementById('welcome-screen');
+                if(welcome) {
+                    welcome.style.display = 'none'; // Force hide
+                    welcome.parentNode.removeChild(welcome); // Remove from DOM completely
+                }
+                
+                document.getElementById('app').classList.remove('opacity-0');
+                this.goto(0);
+            };
+        }
         
         document.getElementById('next-btn').onclick = () => this.next();
         document.getElementById('back-btn').onclick = () => this.back();
@@ -313,12 +335,11 @@ const UI = {
     setAns(id, val) { App.state.answers[id] = val; this.renderQuiz(); },
 
     async renderResult() {
-        // UI FIX: Ensure all overlapping elements are hidden
+        // Double check cleanup
         this.safeClassAdd('nav-footer', 'hidden');
-        
         const welcome = document.getElementById('welcome-screen');
-        if(welcome) welcome.style.display = 'none'; // Hard hide to prevent overlap
-        
+        if(welcome) welcome.style.display = 'none';
+
         this.safeClassRemove('loading-overlay', 'hidden');
         const loadingText = document.getElementById('loading-text');
         if(loadingText) loadingText.innerText = "FINALIZING...";
@@ -363,11 +384,8 @@ const UI = {
         
         const aiContainer = document.getElementById('ai-result-content');
         if(aiContainer) {
-            if(aiResultData) {
-                aiContainer.innerHTML = `<div class="ai-response text-xs text-zinc-300 leading-relaxed font-light">${aiResultData.replace(/\n/g, '<br>')}</div>`;
-            } else {
-                aiContainer.innerHTML = `<p class="text-xs text-red-400">AI Service Unavailable.</p>`;
-            }
+            // Render the AI text (or the error message if something failed)
+            aiContainer.innerHTML = `<div class="ai-response text-xs text-zinc-300 leading-relaxed font-light">${aiResultData.replace(/\n/g, '<br>')}</div>`;
         }
     }
 };
