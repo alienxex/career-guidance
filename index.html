@@ -4,70 +4,100 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Career Guidance | Intelligent Pathfinding</title>
-    <meta name="description" content="AI-driven career pathfinder based on skills and traits.">
-    <link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)">
-    <link rel="preconnect" href="[https://fonts.gstatic.com](https://fonts.gstatic.com)" crossorigin>
-    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
-    <script src="[https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js](https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js)"></script>
+    
+    <!-- External Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Marked.js for formatting AI text output -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
     <style>
-        @import url('[https://fonts.googleapis.com/css?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap](https://fonts.googleapis.com/css?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap)');
-        @import url('[https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap](https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap)');
-        :root { --glass-bg: rgba(0, 0, 0, 0.95); --glass-border: rgba(255, 255, 255, 0.15); --ai-accent: #10b981; }
+        :root { --glass-bg: rgba(0, 0, 0, 0.95); --glass-border: rgba(255, 255, 255, 0.15); }
         body { font-family: 'Inter', sans-serif; background-color: #000; color: #e4e4e7; overflow-x: hidden; margin: 0; }
         h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
-        #canvas-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; background: radial-gradient(circle at center, #111 0%, #000 100%); pointer-events: none; }
-        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(16px); border: 1px solid var(--glass-border); box-shadow: 0 0 50px rgba(0,0,0,0.8); }
-        .input-mono { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); color: white; transition: 0.3s; }
+        
+        /* 3D Canvas Background */
+        #canvas-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }
+        
+        /* Glass Panel Styling */
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(16px); border: 1px solid var(--glass-border); }
+        
+        /* Input Styling */
+        .input-mono { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); color: white; transition: 0.3s; width: 100%; padding: 12px; font-family: 'JetBrains Mono', monospace; margin-bottom: 1rem; }
         .input-mono:focus { border-color: #fff; outline: none; background: rgba(255,255,255,0.1); }
-        select.input-mono option { background-color: #000; color: white; }
-        .btn-mono-primary { background: #fff; color: #000; border: 1px solid #fff; transition: 0.2s; }
-        .btn-mono-primary:hover:not(:disabled) { background: #e4e4e7; box-shadow: 0 0 15px rgba(255,255,255,0.2); }
-        .btn-mono-secondary { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,0.3); }
-        .btn-mono-secondary:hover:not(:disabled) { border-color: #fff; background: rgba(255,255,255,0.1); }
-        .btn-mono:disabled { opacity: 0.5; cursor: not-allowed; }
-        .selection-card { border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.02); transition: 0.2s; }
-        .selection-card.active { background: #fff; color: #000; border-color: #fff; transform: translateY(-2px); }
+        
+        /* Button Styling */
+        .btn-mono { cursor: pointer; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; padding: 12px 24px; width: 100%; transition: 0.2s; }
+        .btn-mono-primary { background: #fff; color: #000; border: 1px solid #fff; }
+        .btn-mono-primary:hover { background: #e4e4e7; box-shadow: 0 0 15px rgba(255,255,255,0.3); }
+        
+        .hidden { display: none !important; }
         .fade-in { animation: fadeIn 0.5s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .spinner { border: 2px solid rgba(255,255,255,0.1); border-top: 2px solid #fff; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-        .quiz-btn { flex: 1; padding: 12px; border: 1px solid #333; transition: 0.2s; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }
-        .quiz-btn:hover { border-color: #666; background: #111; }
-        .quiz-btn.selected { background: #fff; color: #000; border-color: #fff; }
+
+        /* AI Output Typography */
+        .prose h3 { color: #fff; font-size: 1.2rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+        .prose ul { list-style: disc; padding-left: 1.5rem; color: #a1a1aa; margin-bottom: 1rem; }
+        .prose li { margin-bottom: 0.5rem; }
+        .prose p { margin-bottom: 1rem; line-height: 1.6; }
+        .prose strong { color: #fff; font-weight: 600; }
+        
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
+
+    <!-- 3D Background Container -->
     <div id="canvas-container"></div>
-    <div id="app" class="glass-panel rounded-none w-full max-w-2xl p-8 md:p-12 relative z-10 opacity-0 transition-opacity duration-700 flex flex-col min-h-[600px] border-l border-r border-zinc-800">
-        <header class="mb-8 flex justify-between items-start border-b border-zinc-800 pb-4">
-            <div>
-                <h1 class="text-3xl md:text-4xl font-bold text-white tracking-tight cursor-pointer" onclick="UI.restart()">
-                    CAREER<span class="font-light text-zinc-500">GUIDANCE</span>
-                </h1>
-                <p class="text-zinc-500 text-xs mt-1 font-mono tracking-widest uppercase">Deep Analysis v10.5 (Cloudflare Protected)</p>
-            </div>
-            <div class="flex flex-col items-end">
-                <div id="progress-text" class="text-xs font-mono text-white">00%</div>
-            </div>
+
+    <!-- 1. WELCOME SCREEN -->
+    <div id="welcome-screen" class="fixed inset-0 z-40 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
+        <div class="text-center p-8 border border-zinc-800 bg-black max-w-lg w-full relative">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white to-transparent opacity-50"></div>
+            <h1 class="text-4xl font-bold text-white mb-2 tracking-tighter">CAREER<span class="font-thin text-zinc-500">MATRIX</span></h1>
+            <p class="text-zinc-400 text-sm font-mono mb-8 uppercase tracking-widest">System Ready • v2.0</p>
+            <button id="start-btn" class="btn-mono btn-mono-primary">Initialize Analysis</button>
+        </div>
+    </div>
+
+    <!-- 2. MAIN APPLICATION -->
+    <div id="app" class="glass-panel w-full max-w-2xl p-8 hidden relative z-10 flex flex-col min-h-[600px] border border-zinc-800">
+        <header class="mb-8 border-b border-zinc-800 pb-4">
+            <h1 class="text-2xl font-bold text-white tracking-tight">INPUT PARAMETERS</h1>
         </header>
-        <div id="loading-overlay" class="hidden absolute inset-0 bg-black/90 z-50 flex flex-col items-center justify-center backdrop-blur-sm">
-            <div class="spinner mb-4"></div>
-            <p class="text-zinc-400 text-xs font-mono animate-pulse" id="loading-text">PROCESSING...</p>
+
+        <!-- Form Section -->
+        <div id="input-section">
+            <label class="text-xs font-mono text-zinc-500 block mb-2">IDENTITY</label>
+            <input type="text" id="user-name" class="input-mono" placeholder="Your Name">
+
+            <label class="text-xs font-mono text-zinc-500 block mb-2">DATA MATRIX (SKILLS & INTERESTS)</label>
+            <textarea id="user-input" class="input-mono h-40 resize-none" placeholder="Describe your skills, hobbies, and what you love doing..."></textarea>
+            
+            <button id="submit-btn" class="btn-mono btn-mono-primary mt-4">Execute Prediction</button>
         </div>
-        <main id="content-area" class="flex-grow hidden relative flex flex-col fade-in"></main>
-        <footer id="nav-footer" class="mt-auto pt-6 border-t border-zinc-800 flex justify-between items-center hidden">
-            <button id="back-btn" class="btn-mono btn-mono-secondary px-6 py-3 rounded-none text-xs font-bold uppercase">Back</button>
-            <button id="next-btn" class="btn-mono btn-mono-primary px-8 py-3 rounded-none text-xs font-bold uppercase">Next Step</button>
-        </footer>
-        <div id="message-box" class="mt-4 p-3 text-xs font-mono text-center hidden border border-zinc-800 bg-black"></div>
-    </div>
-    <div id="welcome-screen" class="fixed inset-0 z-40 flex flex-col items-center justify-center bg-black">
-        <div class="text-center p-8 border border-zinc-800 bg-black/90 backdrop-blur-md max-w-lg w-full">
-            <h1 class="text-4xl font-bold text-white mb-2">CAREER<br/><span class="font-thin text-zinc-500">MATRIX</span></h1>
-            <p class="text-zinc-400 text-sm mb-8">AI + Algorithmic Career Pathfinding.<br/>Secure Cloud Processing.</p>
-            <button id="start-btn" class="btn-mono btn-mono-primary w-full py-4 text-sm font-bold uppercase tracking-widest">Initialize System</button>
+
+        <!-- Loading Animation -->
+        <div id="loading-state" class="hidden flex-col items-center justify-center h-64">
+            <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-white mb-6"></div>
+            <p class="text-xs font-mono text-zinc-400 animate-pulse">PROCESSING DATA STREAM...</p>
+        </div>
+
+        <!-- Results Display -->
+        <div id="result-section" class="hidden flex-col h-full">
+            <div id="output-text" class="prose text-zinc-300 h-[450px] overflow-y-auto pr-4 custom-scrollbar"></div>
+            <button onclick="location.reload()" class="btn-mono btn-mono-primary mt-6">Reset System</button>
         </div>
     </div>
+
+    <!-- Script Connection (Type module is required for Three.js imports) -->
     <script type="module" src="script.js"></script>
 </body>
 </html>
