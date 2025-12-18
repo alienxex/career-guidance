@@ -1,413 +1,172 @@
-// --- CONFIGURATION ---
-const WORKER_URL = "https://career-ai-proxy.robust9223.workers.dev/"; 
+import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
 
-const AI = {
-    async generate(prompt, isJson = false) {
-        try {
-            const response = await fetch(WORKER_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt, isJson })
-            });
+// ==========================================
+// CONFIGURATION
+// ==========================================
+// Your live Cloudflare Worker URL
+const CLOUDFLARE_WORKER_URL = "https://career-ai-proxy.robust9223.workers.dev"; 
 
-            const data = await response.json();
-
-            // Handle Errors sent from Worker
-            if (data.error) {
-                console.error("AI Error:", data);
-                return { success: false, error: `${data.error}: ${data.details || ''}` };
-            }
-            
-            let text = null;
-            if (data.choices && data.choices[0]) {
-                text = data.choices[0].message.content;
-            } 
-            
-            if (text) return { success: true, text: text };
-            return { success: false, error: "AI returned empty response." };
-
-        } catch (e) {
-            console.error("Network Error:", e);
-            return { success: false, error: "Could not connect to Cloudflare Worker." };
-        }
-    },
-
-    async getQuizQuestions(interests) {
-        // Fallback questions if AI fails
-        const staticQs = [
-            { id: 'fb1', text: "I enjoy solving logical problems.", weights: { Logic: 5 } },
-            { id: 'fb2', text: "I prefer leading teams.", weights: { Leadership: 5 } },
-            { id: 'fb3', text: "I like helping others.", weights: { Empathy: 5 } },
-            { id: 'fb4', text: "I am creative.", weights: { Creativity: 5 } },
-            { id: 'fb5', text: "I like working outdoors.", weights: { Physical: 5 } }
-        ];
-
-        const prompt = `Generate 5 simple "I..." statements for a career aptitude test based on: ${interests.join(', ')}. 
-        Return ONLY valid JSON Array. Example: [{"text": "I like math.", "weights": {"Logic": 5}}]
-        Traits: Logic, Creativity, Leadership, Empathy, Physical, Resilience, Detail Orientation.`;
-        
-        const res = await this.generate(prompt, true);
-        
-        if (res.success && res.text) {
-            try { 
-                let cleanText = res.text.replace(/```json/g,'').replace(/```/g,'').trim();
-                return JSON.parse(cleanText); 
-            } catch(e) { 
-                console.error("JSON Parse failed", e); 
-            }
-        }
-        return null;
-    },
-
-    async getInsight(profile, careers) {
-        const prompt = `Role: Career Counselor. Profile: ${JSON.stringify(profile)}. Available Careers: ${careers.join(', ')}. 
-        Select top 3 fits. Format strictly as Markdown list. Keep it brief.`;
-        
-        const res = await this.generate(prompt, false);
-        
-        if (!res.success) return `AI Error: ${res.error}`;
-        return res.text;
-    }
-};
-
-const App = {
-    state: {
-        step: 0,
-        user: { name: "", age: "", gender: "Male", education: "High School", marks: "", interests: [] },
-        answers: {}, 
-        activeQuestions: [],
-        scores: { Logic:50, Creativity:50, Leadership:50, Empathy:50, Physical:50, Resilience:50, "Detail Orientation":50 },
-        recommendations: []
-    },
+// ==========================================
+// 1. THREE.JS BACKGROUND (Stars Animation)
+// ==========================================
+const initBackground = () => {
+    const container = document.getElementById('canvas-container');
     
-    interestsList: [
-        { id: 'Sports', label: 'Sports', tags: ['Physical','Leadership'] },
-        { id: 'Gaming', label: 'Gaming', tags: ['Logic','Creativity'] },
-        { id: 'Politics', label: 'Politics', tags: ['Leadership','Communication'] },
-        { id: 'Business', label: 'Business', tags: ['Business','Leadership'] },
-        { id: 'Social', label: 'Social Work', tags: ['Empathy','Communication'] },
-        { id: 'Defense', label: 'Defense', tags: ['Physical','Resilience'] },
-        { id: 'Nature', label: 'Nature/Agri', tags: ['Physical','Resilience'] },
-        { id: 'Arts', label: 'Arts/Design', tags: ['Creativity','Detail Orientation'] },
-        { id: 'Coding', label: 'Coding', tags: ['Logic','Detail Orientation'] },
-        { id: 'Medical', label: 'Medical', tags: ['Bio','Empathy'] },
-        { id: 'Finance', label: 'Finance', tags: ['Logic','Detail Orientation'] },
-        { id: 'Law', label: 'Law', tags: ['Logic','Communication'] },
-        { id: 'Teaching', label: 'Teaching', tags: ['Communication','Empathy'] }
-    ],
+    // Safety check
+    if (!container) return;
 
-    coreQuestions: [
-        { id: 'c1', text: "I prefer making decisions based on data.", weights: { Logic: 5 } },
-        { id: 'c2', text: "I am comfortable leading a group.", weights: { Leadership: 5 } },
-        { id: 'c3', text: "I often come up with unique ideas.", weights: { Creativity: 5 } },
-        { id: 'c4', text: "I prefer working outdoors.", weights: { Physical: 5 } },
-        { id: 'c5', text: "I notice small mistakes others miss.", weights: { "Detail Orientation": 5 } }
-    ],
+    // Scene Setup
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ alpha: true });
+    
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    container.appendChild(renderer.domElement);
 
-    interestQuestions: {
-        'Sports': [{id:'q_sp1',text:"I enjoy physical training.",weights:{Physical:5}}],
-        'Gaming': [{id:'q_gm1',text:"I enjoy solving complex puzzles.",weights:{Logic:5}}],
-        'Politics': [{id:'q_po1',text:"I enjoy debating social issues.",weights:{Communication:5}}],
-        'Business': [{id:'q_bu1',text:"I am interested in how money works.",weights:{Logic:4}}],
-        'Social': [{id:'q_so1',text:"I help people in distress.",weights:{Empathy:5}}],
-        'Defense': [{id:'q_df1',text:"I stay calm in danger.",weights:{Resilience:5}}],
-        'Arts': [{id:'q_ar1',text:"I express myself visually.",weights:{Creativity:5}}],
-        'Coding': [{id:'q_co1',text:"I enjoy fixing logical bugs.",weights:{Logic:5}}],
-        'Medical': [{id:'q_me1',text:"I am not squeamish about blood.",weights:{Resilience:4}}],
-        'Finance': [{id:'q_fi1',text:"I am good with numbers.",weights:{Logic:4}}],
-        'Law': [{id:'q_la1',text:"I read documents carefully.",weights:{"Detail Orientation":5}}],
-        'Teaching': [{id:'q_te1',text:"I enjoy explaining things.",weights:{Communication:5}}]
-    },
-
-    careers: [
-        { name: "Teacher / Professor", tags: ["Communication", "Logic", "Social", "Resilience"], desc: "Educating future generations." },
-        { name: "Software Engineer", tags: ["Logic", "Creativity", "Detail Orientation"], desc: "Building software solutions." },
-        { name: "Doctor", tags: ["Bio", "Empathy", "Resilience"], desc: "Healthcare specialist." },
-        { name: "Engineer (Civil/Mech)", tags: ["Logic", "Physical"], desc: "Engineering infrastructure." },
-        { name: "Entrepreneur", tags: ["Business", "Leadership", "Finance", "Resilience"], desc: "Building ventures." },
-        { name: "Chartered Accountant", tags: ["Finance", "Logic", "Detail Orientation"], desc: "Auditing & Taxation." },
-        { name: "Lawyer", tags: ["Law", "Logic", "Communication"], desc: "Legal representation." },
-        { name: "IAS Officer", tags: ["Leadership", "Social", "Resilience"], desc: "Civil services." },
-        { name: "Politician", tags: ["Leadership", "Communication", "Social"], desc: "Public governance." },
-        { name: "Banker", tags: ["Finance", "Logic", "Detail Orientation"], desc: "Banking operations." },
-        { name: "Scientist", tags: ["Logic", "Detail Orientation"], desc: "Research & Innovation." },
-        { name: "Defence Officer", tags: ["Physical", "Leadership", "Resilience"], desc: "National defense." },
-        { name: "Journalist", tags: ["Communication", "Social", "Creativity"], desc: "News & Media." },
-        { name: "Farmer/Agri-Tech", tags: ["Business", "Physical", "Resilience"], desc: "Modern agriculture." },
-        { name: "Artist/Creator", tags: ["Creativity", "Communication", "Social"], desc: "Creative arts." },
-        { name: "Psychologist", tags: ["Empathy", "Bio", "Communication"], desc: "Mental health." }
-    ],
-
-    calculate() {
-        const s = this.state.scores;
-        for(let k in s) s[k] = 50;
-        
-        this.state.user.interests.forEach(id => {
-            const i = this.interestsList.find(x => x.id === id);
-            if(i) i.tags.forEach(t => { if(s[t]!==undefined) s[t] += 15; });
-        });
-
-        this.state.activeQuestions.forEach(q => {
-            const ans = this.state.answers[q.id];
-            if(ans) {
-                const mult = ans === 'Agree' ? 1 : -1;
-                for(let k in q.weights) if(s[k]!==undefined) s[k] += (q.weights[k] * 4 * mult);
-            }
-        });
-
-        const ranked = this.careers.map(job => {
-            let score = 0;
-            job.tags.forEach(t => score += (s[t] || 50));
-            const marks = Number(this.state.user.marks) || 0;
-            if(marks < 60 && ["Doctor","Scientist","Chartered Accountant"].includes(job.name)) score -= 30;
-            return { ...job, score: Math.min(96, Math.round((score/250)*100)) }; 
-        });
-
-        this.state.recommendations = ranked.sort((a,b) => b.score - a.score).slice(0, 3);
+    // Create Star Particles
+    const geometry = new THREE.BufferGeometry();
+    const vertices = [];
+    for (let i = 0; i < 3000; i++) {
+        vertices.push((Math.random() - 0.5) * 2000); // x
+        vertices.push((Math.random() - 0.5) * 2000); // y
+        vertices.push((Math.random() - 0.5) * 2000); // z
     }
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    const material = new THREE.PointsMaterial({ color: 0x888888, size: 2 });
+    const stars = new THREE.Points(geometry, material);
+    scene.add(stars);
+
+    camera.position.z = 1000;
+
+    // Animation Loop
+    const animate = () => {
+        requestAnimationFrame(animate);
+        stars.rotation.x += 0.0002;
+        stars.rotation.y += 0.0005;
+        renderer.render(scene, camera);
+    };
+    animate();
+
+    // Handle Window Resize
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
 };
 
-const UI = {
-    init() {
-        // --- THE NUCLEAR FIX ---
-        // This instantly DESTROYS the welcome screen on click
-        const startBtn = document.getElementById('start-btn');
-        if(startBtn) {
-            startBtn.onclick = () => {
-                const welcome = document.getElementById('welcome-screen');
-                if(welcome) welcome.remove(); // Delete it. Gone. Forever.
+// ==========================================
+// 2. USER INTERFACE LOGIC
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+    initBackground();
+
+    // Select DOM Elements
+    const welcomeScreen = document.getElementById('welcome-screen');
+    const appScreen = document.getElementById('app');
+    const startBtn = document.getElementById('start-btn');
+    const submitBtn = document.getElementById('submit-btn');
+    
+    const inputSection = document.getElementById('input-section');
+    const loadingState = document.getElementById('loading-state');
+    const resultSection = document.getElementById('result-section');
+    const outputText = document.getElementById('output-text');
+
+    // Button: Enter App
+    if (startBtn) {
+        startBtn.addEventListener('click', () => {
+            welcomeScreen.classList.add('hidden');
+            appScreen.classList.remove('hidden');
+            appScreen.classList.add('fade-in');
+        });
+    }
+
+    // Button: Generate Career Path
+    if (submitBtn) {
+        submitBtn.addEventListener('click', async () => {
+            const name = document.getElementById('user-name').value;
+            const skills = document.getElementById('user-input').value;
+
+            // Validation
+            if (!skills) {
+                alert("Please enter your skills and interests to proceed.");
+                return;
+            }
+
+            // UI: Switch to Loading
+            inputSection.classList.add('hidden');
+            loadingState.classList.remove('hidden');
+            loadingState.style.display = 'flex';
+
+            try {
+                // Fetch Data
+                const aiResponse = await fetchCareerAdvice(name, skills);
                 
-                document.getElementById('app').classList.remove('opacity-0');
-                this.goto(0);
-            };
-        }
-        
-        document.getElementById('next-btn').onclick = () => this.next();
-        document.getElementById('back-btn').onclick = () => this.back();
-        
-        setTimeout(() => {
-            document.getElementById('content-area')?.classList.remove('hidden');
-            document.getElementById('nav-footer')?.classList.remove('hidden');
-        }, 500);
-    },
+                // UI: Switch to Results
+                loadingState.classList.add('hidden');
+                resultSection.classList.remove('hidden');
+                resultSection.style.display = 'flex';
+                
+                // Render Markdown (Requires marked.js in HTML)
+                if (typeof marked !== 'undefined') {
+                    outputText.innerHTML = marked.parse(aiResponse);
+                } else {
+                    outputText.innerText = aiResponse;
+                }
 
-    restart() { location.reload(); },
-
-    safeClassRemove(id, cls) {
-        const el = document.getElementById(id);
-        if(el) el.classList.remove(cls);
-    },
-    safeClassAdd(id, cls) {
-        const el = document.getElementById(id);
-        if(el) el.classList.add(cls);
-    },
-
-    goto(step) {
-        App.state.step = step;
-        const el = document.getElementById('content-area');
-        if(!el) return;
-        
-        el.innerHTML = '';
-        el.classList.remove('fade-in');
-        void el.offsetWidth; 
-        el.classList.add('fade-in');
-
-        if(step===0) this.renderIdentity();
-        else if(step===1) this.renderBackground();
-        else if(step===2) this.renderInterests();
-        else if(step===3) this.renderQuiz();
-        else if(step===4) this.renderResult();
-        
-        const pText = document.getElementById('progress-text');
-        if(pText) pText.innerText = `${Math.round((step/4)*100)}%`;
-    },
-
-    async next() {
-        const s = App.state.step;
-        
-        if(s===0 && App.state.user.name.length < 2) return alert("Please enter your name.");
-        if(s===1 && !App.state.user.marks) return alert("Please enter your marks.");
-        if(s===2 && App.state.user.interests.length === 0) return alert("Select at least one interest.");
-        
-        if(s===2) {
-            this.safeClassRemove('loading-overlay', 'hidden');
-            const loadingText = document.getElementById('loading-text');
-            if(loadingText) loadingText.innerText = "GENERATING QUESTIONS...";
-            
-            let aiQs = await AI.getQuizQuestions(App.state.user.interests);
-            const staticQs = App.coreQuestions.map((q,i)=>({...q, id:`s_${i}`}));
-            
-            if(aiQs && Array.isArray(aiQs) && aiQs.length > 0) {
-                const mappedAi = aiQs.map((q,i)=>({...q, id:`ai_${i}`}));
-                App.state.activeQuestions = [...staticQs, ...mappedAi];
-            } else {
-                App.state.activeQuestions = [...staticQs];
-                App.state.user.interests.forEach(intId => {
-                   const qs = App.interestQuestions[intId];
-                   if(qs) App.state.activeQuestions.push(qs[0]); 
-                });
-                App.state.activeQuestions = App.state.activeQuestions.filter((v,i,a)=>a.findIndex(t=>(t.id===v.id))===i).slice(0,10);
+            } catch (error) {
+                console.error("App Error:", error);
+                
+                // Reset UI on error
+                loadingState.classList.add('hidden');
+                inputSection.classList.remove('hidden');
+                alert(`Connection Error: ${error.message}`);
             }
-            
-            this.safeClassAdd('loading-overlay', 'hidden');
-        }
-
-        if(s===3) {
-            const answered = App.state.activeQuestions.every(q => App.state.answers[q.id]);
-            if(!answered) return alert("Please answer all questions.");
-        }
-
-        this.goto(s+1);
-    },
-
-    back() { if(App.state.step>0) this.goto(App.state.step-1); },
-
-    renderIdentity() {
-        document.getElementById('content-area').innerHTML = `
-            <h2 class="text-2xl font-bold text-white mb-4">IDENTITY</h2>
-            <div class="space-y-4">
-                <input id="in-name" class="w-full p-4 input-mono text-sm" placeholder="Full Name" value="${App.state.user.name}">
-                <div class="flex gap-4">
-                    <input id="in-age" type="number" class="w-1/2 p-4 input-mono text-sm" placeholder="Age" value="${App.state.user.age}">
-                    <select id="in-gender" class="w-1/2 p-4 input-mono text-sm">
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                    </select>
-                </div>
-            </div>`;
-        document.getElementById('in-name').oninput = e => App.state.user.name = e.target.value;
-        document.getElementById('in-age').oninput = e => App.state.user.age = e.target.value;
-        document.getElementById('in-gender').onchange = e => App.state.user.gender = e.target.value;
-    },
-
-    renderBackground() {
-        document.getElementById('content-area').innerHTML = `
-            <h2 class="text-2xl font-bold text-white mb-4">ACADEMIC</h2>
-            <div class="space-y-4">
-                <label class="text-xs text-zinc-400">Current Pursuing Education</label>
-                <select id="in-edu" class="w-full p-4 input-mono text-sm">
-                    <option value="High School">High School (10th-12th)</option>
-                    <option value="Undergraduate">Undergraduate</option>
-                    <option value="Postgraduate">Postgraduate</option>
-                </select>
-                <label class="text-xs text-zinc-400">Performance (%)</label>
-                <input id="in-marks" type="number" class="w-full p-4 input-mono text-sm" placeholder="0-100" value="${App.state.user.marks}">
-            </div>`;
-        document.getElementById('in-edu').onchange = e => App.state.user.education = e.target.value;
-        document.getElementById('in-marks').oninput = e => App.state.user.marks = e.target.value;
-    },
-
-    renderInterests() {
-        const html = App.interestsList.map(i => 
-            `<button class="p-4 selection-card text-left text-xs font-bold uppercase tracking-wider ${App.state.user.interests.includes(i.id)?'active':''}" onclick="UI.toggleInt('${i.id}')">${i.label}</button>`
-        ).join('');
-        document.getElementById('content-area').innerHTML = `
-            <h2 class="text-2xl font-bold text-white mb-4">INTERESTS</h2>
-            <div class="grid grid-cols-2 gap-3 overflow-y-auto max-h-[400px] pr-2">${html}</div>`;
-    },
-    toggleInt(id) {
-        const idx = App.state.user.interests.indexOf(id);
-        if(idx > -1) App.state.user.interests.splice(idx,1);
-        else App.state.user.interests.push(id);
-        this.renderInterests();
-    },
-
-    renderQuiz() {
-        const html = App.state.activeQuestions.map((q, i) => `
-            <div class="mb-6 fade-in" style="animation-delay:${i*0.05}s">
-                <p class="text-sm text-zinc-300 mb-2">${i+1}. ${q.text}</p>
-                <div class="flex gap-2">
-                    <button class="quiz-btn ${App.state.answers[q.id]==='Disagree'?'selected':''}" onclick="UI.setAns('${q.id}', 'Disagree')">Disagree</button>
-                    <button class="quiz-btn ${App.state.answers[q.id]==='Agree'?'selected':''}" onclick="UI.setAns('${q.id}', 'Agree')">Agree</button>
-                </div>
-            </div>
-        `).join('');
-        document.getElementById('content-area').innerHTML = `
-            <h2 class="text-2xl font-bold text-white mb-4">ASSESSMENT</h2>
-            <div class="overflow-y-auto max-h-[420px] pr-2">${html}</div>`;
-    },
-    setAns(id, val) { App.state.answers[id] = val; this.renderQuiz(); },
-
-    async renderResult() {
-        this.safeClassAdd('nav-footer', 'hidden');
-        this.safeClassRemove('loading-overlay', 'hidden');
-        const loadingText = document.getElementById('loading-text');
-        if(loadingText) loadingText.innerText = "FINALIZING...";
-
-        App.calculate();
-        
-        const algoHTML = App.state.recommendations.map((r, i) => 
-            `<div class="p-4 border border-zinc-800 bg-zinc-900/50 mb-2 rounded-lg">
-                <div class="flex justify-between items-center mb-1">
-                    <span class="font-bold text-white text-sm">#${i+1} ${r.name}</span>
-                    <span class="text-[10px] border border-zinc-600 px-1 text-zinc-400">${r.score}% Match</span>
-                </div>
-                <p class="text-[10px] text-zinc-500">${r.desc}</p>
-             </div>`
-        ).join('');
-
-        document.getElementById('content-area').innerHTML = `
-            <div class="text-center mb-6">
-                <h2 class="text-2xl font-bold text-white">CAREER BLUEPRINT</h2>
-                <p class="text-[10px] font-mono text-zinc-500 uppercase">Optimized for ${App.state.user.name}</p>
-            </div>
-            <div class="grid md:grid-cols-2 gap-6 h-full overflow-y-auto pr-1 pb-4">
-                <div>
-                    <h3 class="text-xs font-bold text-white uppercase mb-3 border-b border-zinc-800 pb-1">TOP MATCHES</h3>
-                    ${algoHTML}
-                </div>
-                <div class="p-4 border border-zinc-800 bg-zinc-900/30 rounded-lg">
-                    <h3 class="text-xs font-bold text-emerald-500 uppercase mb-3 border-b border-zinc-800 pb-1">NEURAL ANALYSIS</h3>
-                    <div id="ai-result-content">
-                        <div class="spinner border-t-emerald-500"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="mt-4 text-center"><button class="btn-mono btn-mono-secondary px-6 py-2 text-xs uppercase" onclick="location.reload()">New Session</button></div>
-        `;
-        
-        this.safeClassAdd('loading-overlay', 'hidden');
-
-        // Fetch AI
-        const careerNames = App.careers.map(c => c.name);
-        const aiResultData = await AI.getInsight({ user: App.state.user, scores: App.state.scores }, careerNames);
-        
-        const aiContainer = document.getElementById('ai-result-content');
-        if(aiContainer) {
-            aiContainer.innerHTML = `<div class="ai-response text-xs text-zinc-300 leading-relaxed font-light">${aiResultData.replace(/\n/g, '<br>')}</div>`;
-        }
+        });
     }
-};
+});
 
-const ThreeBG = {
-    init() {
-        try {
-            const container = document.getElementById('canvas-container');
-            if (!container || typeof THREE === 'undefined') return;
-            const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0x000000, 0.002);
-            const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight); container.appendChild(renderer.domElement);
-            scene.add(new THREE.AmbientLight(0x404040, 2));
-            const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-            dirLight.position.set(10, 10, 5);
-            scene.add(dirLight);
+// ==========================================
+// 3. API CONNECTION (To Cloudflare)
+// ==========================================
+async function fetchCareerAdvice(name, skills) {
+    
+    // Create the prompt
+    const prompt = `
+        Role: Expert Career Counselor.
+        User Name: ${name || 'User'}
+        User Skills & Interests: ${skills}
 
-            const geometry = new THREE.TetrahedronGeometry(1, 0);
-            const material = new THREE.MeshBasicMaterial({ color: 0x52525b, wireframe: true, transparent: true, opacity: 0.2 });
-            const group = new THREE.Group(); scene.add(group);
-            for(let i=0; i<30; i++) {
-                const m = new THREE.Mesh(geometry, material);
-                m.position.set((Math.random()-0.5)*50, (Math.random()-0.5)*50, (Math.random()-0.5)*30);
-                group.add(m);
-            }
-            camera.position.z = 20;
-            const animate = () => { requestAnimationFrame(animate); group.rotation.y+=0.001; renderer.render(scene, camera); };
-            animate();
-            window.onresize = () => { camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
-        } catch(e) { console.error("ThreeJS failed", e); }
+        Task: Analyze the user's profile and suggest 3 specific career paths.
+        For each path include:
+        1. Job Title
+        2. Why it fits their skills
+        3. A "First Step" to get started.
+
+        Format: Use Markdown (Bold titles, bullet points).
+    `;
+
+    // Send to your Cloudflare Worker
+    const response = await fetch(CLOUDFLARE_WORKER_URL, {
+        method: "POST",
+        headers: { 
+            "Content-Type": "application/json" 
+        },
+        body: JSON.stringify({ prompt: prompt })
+    });
+
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Server returned status: ${response.status} - ${errText}`);
     }
-};
-
-window.UI = UI;
-window.onload = () => { ThreeBG.init(); UI.init(); };
+    
+    const data = await response.json();
+    
+    if (data.answer) {
+        return data.answer;
+    } else if (data.error) {
+        throw new Error(data.error);
+    } else {
+        throw new Error("Invalid response format from server");
+    }
+}
