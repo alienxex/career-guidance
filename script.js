@@ -7,15 +7,12 @@ import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/thr
 const CLOUDFLARE_WORKER_URL = "https://career-ai-proxy.robust9223.workers.dev"; 
 
 // ==========================================
-// 1. THREE.JS BACKGROUND (Stars Animation)
+// 1. THREE.JS BACKGROUND
 // ==========================================
 const initBackground = () => {
     const container = document.getElementById('canvas-container');
-    
-    // Safety check
     if (!container) return;
 
-    // Scene Setup
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ alpha: true });
@@ -23,7 +20,7 @@ const initBackground = () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
     container.appendChild(renderer.domElement);
 
-    // Create Star Particles
+    // Create Stars
     const geometry = new THREE.BufferGeometry();
     const vertices = [];
     for (let i = 0; i < 3000; i++) {
@@ -47,7 +44,7 @@ const initBackground = () => {
     };
     animate();
 
-    // Handle Window Resize
+    // Resize Handler
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
@@ -56,23 +53,21 @@ const initBackground = () => {
 };
 
 // ==========================================
-// 2. USER INTERFACE LOGIC
+// 2. APP LOGIC
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
     initBackground();
 
-    // Select DOM Elements
     const welcomeScreen = document.getElementById('welcome-screen');
     const appScreen = document.getElementById('app');
     const startBtn = document.getElementById('start-btn');
     const submitBtn = document.getElementById('submit-btn');
-    
     const inputSection = document.getElementById('input-section');
     const loadingState = document.getElementById('loading-state');
     const resultSection = document.getElementById('result-section');
     const outputText = document.getElementById('output-text');
 
-    // Button: Enter App
+    // Welcome Screen Transition
     if (startBtn) {
         startBtn.addEventListener('click', () => {
             welcomeScreen.classList.add('hidden');
@@ -81,33 +76,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Button: Generate Career Path
+    // Handle Submission
     if (submitBtn) {
         submitBtn.addEventListener('click', async () => {
+            // Get inputs
             const name = document.getElementById('user-name').value;
+            const education = document.getElementById('user-education').value; // <--- NEW FIELD
             const skills = document.getElementById('user-input').value;
 
-            // Validation
             if (!skills) {
-                alert("Please enter your skills and interests to proceed.");
+                alert("Please enter your skills to proceed.");
                 return;
             }
 
-            // UI: Switch to Loading
+            // Show Loading
             inputSection.classList.add('hidden');
             loadingState.classList.remove('hidden');
             loadingState.style.display = 'flex';
 
             try {
-                // Fetch Data
-                const aiResponse = await fetchCareerAdvice(name, skills);
+                // Fetch advice with all 3 parameters
+                const aiResponse = await fetchCareerAdvice(name, education, skills);
                 
-                // UI: Switch to Results
+                // Show Result
                 loadingState.classList.add('hidden');
                 resultSection.classList.remove('hidden');
                 resultSection.style.display = 'flex';
                 
-                // Render Markdown (Requires marked.js in HTML)
+                // Render Markdown
                 if (typeof marked !== 'undefined') {
                     outputText.innerHTML = marked.parse(aiResponse);
                 } else {
@@ -115,58 +111,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
             } catch (error) {
-                console.error("App Error:", error);
-                
-                // Reset UI on error
+                console.error(error);
                 loadingState.classList.add('hidden');
                 inputSection.classList.remove('hidden');
-                alert(`Connection Error: ${error.message}`);
+                alert(`Error: ${error.message}`);
             }
         });
     }
 });
 
 // ==========================================
-// 3. API CONNECTION (To Cloudflare)
+// 3. API CONNECTION
 // ==========================================
-async function fetchCareerAdvice(name, skills) {
+async function fetchCareerAdvice(name, education, skills) {
     
-    // Create the prompt
+    // Construct the prompt with the new education field
     const prompt = `
         Role: Expert Career Counselor.
         User Name: ${name || 'User'}
+        Current Education Level: ${education || 'Not specified'}
         User Skills & Interests: ${skills}
 
-        Task: Analyze the user's profile and suggest 3 specific career paths.
+        Task: Suggest 3 specific career paths suitable for someone with this education background and skill set.
+        
         For each path include:
         1. Job Title
-        2. Why it fits their skills
+        2. Why it fits their skills & education
         3. A "First Step" to get started.
 
-        Format: Use Markdown (Bold titles, bullet points).
+        Format: Markdown (Bold titles, bullet points).
     `;
 
-    // Send to your Cloudflare Worker
     const response = await fetch(CLOUDFLARE_WORKER_URL, {
         method: "POST",
-        headers: { 
-            "Content-Type": "application/json" 
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: prompt })
     });
 
     if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`Server returned status: ${response.status} - ${errText}`);
+        throw new Error(`Server Error: ${response.status} ${errText}`);
     }
     
     const data = await response.json();
-    
-    if (data.answer) {
-        return data.answer;
-    } else if (data.error) {
-        throw new Error(data.error);
-    } else {
-        throw new Error("Invalid response format from server");
-    }
+    if (data.answer) return data.answer;
+    if (data.error) throw new Error(data.error);
+    throw new Error("Invalid response format.");
 }
