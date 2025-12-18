@@ -62,7 +62,7 @@
         <div class="text-center p-8 border border-zinc-800 bg-black max-w-lg w-full relative">
             <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white to-transparent opacity-50"></div>
             <h1 class="text-4xl font-bold text-white mb-2 tracking-tighter">CAREER<span class="font-thin text-zinc-500">MATRIX</span></h1>
-            <p class="text-zinc-400 text-sm font-mono mb-8 uppercase tracking-widest">System Ready • v2.0</p>
+            <p class="text-zinc-400 text-sm font-mono mb-8 uppercase tracking-widest">System Ready • v2.1</p>
             <button id="start-btn" class="btn-mono btn-mono-primary">Initialize Analysis</button>
         </div>
     </div>
@@ -78,8 +78,12 @@
             <label class="text-xs font-mono text-zinc-500 block mb-2">IDENTITY</label>
             <input type="text" id="user-name" class="input-mono" placeholder="Your Name">
 
+            <!-- NEW FIELD: EDUCATION -->
+            <label class="text-xs font-mono text-zinc-500 block mb-2">CURRENT EDUCATION</label>
+            <input type="text" id="user-education" class="input-mono" placeholder="e.g. High School, B.Tech CSE, MBA Student...">
+
             <label class="text-xs font-mono text-zinc-500 block mb-2">DATA MATRIX (SKILLS & INTERESTS)</label>
-            <textarea id="user-input" class="input-mono h-40 resize-none" placeholder="Describe your skills, hobbies, and what you love doing..."></textarea>
+            <textarea id="user-input" class="input-mono h-32 resize-none" placeholder="Describe your skills, hobbies, and what you love doing..."></textarea>
             
             <button id="submit-btn" class="btn-mono btn-mono-primary mt-4">Execute Prediction</button>
         </div>
@@ -97,7 +101,7 @@
         </div>
     </div>
 
-    <!-- Script Connection (Type module is required for Three.js imports) -->
+    <!-- Script Connection -->
     <script type="module" src="script.js"></script>
 </body>
 </html>
