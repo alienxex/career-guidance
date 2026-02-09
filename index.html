@@ -7,7 +7,6 @@
     
     <!-- External Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Marked.js for formatting AI text output -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <!-- Fonts -->
@@ -20,17 +19,12 @@
         body { font-family: 'Inter', sans-serif; background-color: #000; color: #e4e4e7; overflow-x: hidden; margin: 0; }
         h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
         
-        /* 3D Canvas Background */
         #canvas-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }
-        
-        /* Glass Panel Styling */
         .glass-panel { background: var(--glass-bg); backdrop-filter: blur(16px); border: 1px solid var(--glass-border); }
         
-        /* Input Styling */
         .input-mono { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); color: white; transition: 0.3s; width: 100%; padding: 12px; font-family: 'JetBrains Mono', monospace; margin-bottom: 1rem; }
         .input-mono:focus { border-color: #fff; outline: none; background: rgba(255,255,255,0.1); }
         
-        /* Button Styling */
         .btn-mono { cursor: pointer; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; padding: 12px 24px; width: 100%; transition: 0.2s; }
         .btn-mono-primary { background: #fff; color: #000; border: 1px solid #fff; }
         .btn-mono-primary:hover { background: #e4e4e7; box-shadow: 0 0 15px rgba(255,255,255,0.3); }
@@ -39,14 +33,12 @@
         .fade-in { animation: fadeIn 0.5s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* AI Output Typography */
-        .prose h3 { color: #fff; font-size: 1.2rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+        .prose h3 { color: #fff; font-size: 1.2rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; border-left: 3px solid #fff; padding-left: 10px; }
         .prose ul { list-style: disc; padding-left: 1.5rem; color: #a1a1aa; margin-bottom: 1rem; }
         .prose li { margin-bottom: 0.5rem; }
         .prose p { margin-bottom: 1rem; line-height: 1.6; }
         .prose strong { color: #fff; font-weight: 600; }
         
-        /* Custom Scrollbar */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
@@ -54,7 +46,6 @@
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
 
-    <!-- 3D Background Container -->
     <div id="canvas-container"></div>
 
     <!-- 1. WELCOME SCREEN -->
@@ -73,35 +64,121 @@
             <h1 class="text-2xl font-bold text-white tracking-tight">INPUT PARAMETERS</h1>
         </header>
 
-        <!-- Form Section -->
         <div id="input-section">
             <label class="text-xs font-mono text-zinc-500 block mb-2">IDENTITY</label>
             <input type="text" id="user-name" class="input-mono" placeholder="Your Name">
 
-            <!-- NEW FIELD: EDUCATION -->
             <label class="text-xs font-mono text-zinc-500 block mb-2">CURRENT EDUCATION</label>
-            <input type="text" id="user-education" class="input-mono" placeholder="e.g. High School, B.Tech CSE, MBA Student...">
+            <input type="text" id="user-education" class="input-mono" placeholder="e.g. B.Tech Student, MBA...">
 
             <label class="text-xs font-mono text-zinc-500 block mb-2">DATA MATRIX (SKILLS & INTERESTS)</label>
-            <textarea id="user-input" class="input-mono h-32 resize-none" placeholder="Describe your skills, hobbies, and what you love doing..."></textarea>
+            <textarea id="user-input" class="input-mono h-32 resize-none" placeholder="Describe your skills and hobbies..."></textarea>
             
             <button id="submit-btn" class="btn-mono btn-mono-primary mt-4">Execute Prediction</button>
         </div>
 
-        <!-- Loading Animation -->
         <div id="loading-state" class="hidden flex-col items-center justify-center h-64">
             <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-white mb-6"></div>
-            <p class="text-xs font-mono text-zinc-400 animate-pulse">PROCESSING DATA STREAM...</p>
+            <p class="text-xs font-mono text-zinc-400 animate-pulse uppercase tracking-widest">Processing Data Stream...</p>
         </div>
 
-        <!-- Results Display -->
         <div id="result-section" class="hidden flex-col h-full">
             <div id="output-text" class="prose text-zinc-300 h-[450px] overflow-y-auto pr-4 custom-scrollbar"></div>
-            <button onclick="location.reload()" class="btn-mono btn-mono-primary mt-6">Reset System</button>
+            <div class="flex gap-2 mt-6">
+                <button id="copy-btn" class="btn-mono border border-zinc-700 text-zinc-400 hover:text-white flex-1 text-sm">Copy Result</button>
+                <button onclick="location.reload()" class="btn-mono btn-mono-primary flex-1 text-sm">Reset System</button>
+            </div>
         </div>
     </div>
 
-    <!-- Script Connection -->
-    <script type="module" src="script.js"></script>
+    <script type="module">
+        import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
+
+        // Updated Cloudflare Link based on your dashboard
+        const WORKER_URL = "https://career-ai-proxy.robust9223.workers.dev"; 
+
+        // 1. THREE.JS BACKGROUND
+        const initBg = () => {
+            const container = document.getElementById('canvas-container');
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+            const geo = new THREE.BufferGeometry();
+            const verts = [];
+            for(let i=0; i<3000; i++) verts.push((Math.random()-0.5)*2000, (Math.random()-0.5)*2000, (Math.random()-0.5)*2000);
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+            const stars = new THREE.Points(geo, new THREE.PointsMaterial({color: 0x888888, size: 2}));
+            scene.add(stars);
+            camera.position.z = 1000;
+            const animate = () => { requestAnimationFrame(animate); stars.rotation.x += 0.0002; stars.rotation.y += 0.0005; renderer.render(scene, camera); };
+            animate();
+            window.addEventListener('resize', () => { camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+        };
+
+        // 2. APP LOGIC
+        document.addEventListener('DOMContentLoaded', () => {
+            initBg();
+            const startBtn = document.getElementById('start-btn');
+            const submitBtn = document.getElementById('submit-btn');
+            const app = document.getElementById('app');
+            const loading = document.getElementById('loading-state');
+            const results = document.getElementById('result-section');
+            const output = document.getElementById('output-text');
+
+            startBtn.onclick = () => {
+                document.getElementById('welcome-screen').classList.add('hidden');
+                app.classList.remove('hidden');
+                app.classList.add('fade-in');
+            };
+
+            submitBtn.onclick = async () => {
+                const name = document.getElementById('user-name').value;
+                const edu = document.getElementById('user-education').value;
+                const skills = document.getElementById('user-input').value;
+
+                if (!skills || !edu) return alert("System requires Education and Data Matrix parameters.");
+
+                document.getElementById('input-section').classList.add('hidden');
+                loading.classList.remove('hidden');
+                loading.style.display = 'flex';
+
+                try {
+                    const response = await fetch(WORKER_URL, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ 
+                            prompt: `Act as a high-end career counselor. 
+                                    User: ${name || 'Candidate'}
+                                    Education: ${edu}
+                                    Skills: ${skills}
+                                    Provide a detailed matrix of 3 career paths with 'Why it fits' and 'Strategic First Steps'.` 
+                        })
+                    });
+
+                    const data = await response.json();
+                    if (data.answer) {
+                        loading.classList.add('hidden');
+                        results.classList.remove('hidden');
+                        results.style.display = 'flex';
+                        output.innerHTML = marked.parse(data.answer);
+                    } else {
+                        throw new Error(data.details || data.error || "Model error");
+                    }
+                } catch (e) {
+                    alert("System Exception: " + e.message);
+                    loading.classList.add('hidden');
+                    document.getElementById('input-section').classList.remove('hidden');
+                }
+            };
+
+            document.getElementById('copy-btn').onclick = () => {
+                navigator.clipboard.writeText(output.innerText);
+                document.getElementById('copy-btn').innerText = "COPIED";
+                setTimeout(() => { document.getElementById('copy-btn').innerText = "COPY RESULT"; }, 2000);
+            };
+        });
+    </script>
 </body>
 </html>
